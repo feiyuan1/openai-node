@@ -1578,6 +1578,7 @@ export class OpenAI {
     const url = this.buildURL(path!, query as Record<string, unknown>, defaultBaseURL);
     if ('timeout' in options) validatePositiveInteger('timeout', options.timeout);
     options.timeout = options.timeout ?? this.timeout;
+    let finalizedContentType: string | null = null;
     if (options.__metadata?.['finalizeMultipart'] === true && hasUploadableValue(options.body)) {
       const finalized = await maybeMultipartFormRequestOptions(
         options,
@@ -1587,6 +1588,7 @@ export class OpenAI {
       inputOptions.body = options.body = finalized.body;
       inputOptions.headers = options.headers = finalized.headers;
       inputOptions.__metadata = options.__metadata = { ...finalized.__metadata };
+      finalizedContentType = buildHeaders([finalized.headers]).values.get('content-type');
     }
     if (options.__metadata?.['streamFromBody'] === true) {
       finalizeStreamingFormRequestOptions(options);
@@ -1660,6 +1662,8 @@ export class OpenAI {
     }
 
     const reqHeaders = await this.buildHeaders({ options: inputOptions, method, bodyHeaders, retryCount });
+    // Apply the encoding header after authentication has composed its request snapshot.
+    if (finalizedContentType !== null) reqHeaders.set('content-type', finalizedContentType);
 
     const req: FinalizedRequestInit = {
       method,
